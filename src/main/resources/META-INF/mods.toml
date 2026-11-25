@@ -1,0 +1,40 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "${mod_license}"
+issueTrackerURL = "https://github.com/Type-Omega/Omega-QA/issues"
+
+[[mods]]
+    modId = "${mod_id}"
+    version = "${version}"
+    displayName = "${mod_name}"
+    displayURL = "${mod_url}"
+    authors = "${mod_author}"
+    logoFile = "assets/omegaqa/textures/logo.png"
+    description = '''
+QA kit for the Type Omega mods: GameTest DSL and rigs, content sweeps, JUnit/JSON reports, perf benches and the QA wand. For development, CI and test packs only.
+'''
+
+    [[dependencies.${mod_id}]]
+        modId = "forge"
+        mandatory = true
+        versionRange = "[${forge_version},)"
+        ordering = "NONE"
+        side = "BOTH"
+    [[dependencies.${mod_id}]]
+        modId = "minecraft"
+        mandatory = true
+        versionRange = "[${minecraft_version}]"
+        ordering = "NONE"
+        side = "BOTH"
+    [[dependencies.${mod_id}]]
+        modId = "gtceu"
+        mandatory = true
+        versionRange = "[${gtceu_version},8.0.0)"
+        ordering = "AFTER"
+        side = "BOTH"
+    [[dependencies.${mod_id}]]
+        modId = "typeomegalib"
+        mandatory = true
+        versionRange = "[${typeomegalib_version},)"
+        ordering = "AFTER"
+        side = "BOTH"

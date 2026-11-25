@@ -1,0 +1,215 @@
+plugins {
+    id "idea"
+    id "eclipse"
+    id "maven-publish"
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
+    id 'com.diffplug.spotless' version '7.0.2'
+}
+
+sourceSets {
+    main.resources {
+        srcDir 'src/generated/resources'
+    }
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        name = 'Type-Omega'
+        url = 'https://type-omega.github.io/maven/'
+        content { includeGroup 'com.typeomega' }
+    }
+    mavenCentral()
+    maven {
+        name = 'GTCEu Maven'
+        url = 'https://maven.gtceu.com'
+        content {
+            includeGroup 'com.gregtechceu.gtceu'
+        }
+    }
+    maven {
+        name 'FirstDarkDev'
+        url "https://maven.firstdark.dev/snapshots/"
+    }
+    maven { // Registrate
+        url = "https://maven.tterrag.com/"
+        content {
+            // need to be specific here due to version overlaps
+            includeGroup("com.tterrag.registrate")
+        }
+    }
+    maven {
+        // Patchouli, JEI
+        name = "BlameJared"
+        url = "https://maven.blamejared.com/"
+    }
+    maven {
+        url = "https://maven.theillusivec4.top/"
+    }
+    maven {
+        // Curse Forge File
+        url "https://cursemaven.com/"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        // EMI
+		name = "TerraformersMC"
+		url = "https://maven.terraformersmc.com/"
+	}
+    maven {
+        url = "https://thedarkcolour.github.io/KotlinForForge/"
+    }
+
+}
+
+version = mod_version
+group = maven_group
+base { archivesName = archives_base_name }
+java { sourceCompatibility = targetCompatibility = JavaVersion.VERSION_17 }
+
+legacyForge {
+    version = project.minecraft_version + '-' + project.forge_version
+
+    parchment {
+        mappingsVersion = project.mapping_version
+        minecraftVersion = project.minecraft_version
+    }
+
+    runs {
+        configureEach {
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+        client {
+            client()
+            sourceSet = sourceSets.main
+            programArguments.addAll('--refresh-dependencies')
+            systemProperty('forge.enabledGameTestNamespaces', project.mod_id)
+        }
+        server {
+            server()
+            sourceSet = sourceSets.main
+            systemProperty('forge.enabledGameTestNamespaces', project.mod_id)
+            programArguments.addAll('--nogui', '--world', 'world-extra')
+        }
+        gameTestServer {
+            type = "gameTestServer"
+            sourceSet = sourceSets.main
+            systemProperty('forge.enabledGameTestNamespaces', project.mod_id)
+            systemProperty('omegaqa.reportDir', file('build/reports/omegaqa').absolutePath)
+            // EN: Forward -Domegaqa.* JVM properties from Gradle invocations to the GameTestServer JVM.
+            // PT: Repassa propriedades -Domegaqa.* da chamada do Gradle para a JVM do GameTestServer.
+            // ZH: 将 Gradle 调用中的 -Domegaqa.* JVM 属性转发到 GameTestServer JVM。
+            System.getProperties().each { k, v ->
+                if (k.toString().startsWith('omegaqa.')) {
+                    systemProperty(k.toString(), v.toString())
+                }
+            }
+        }
+        data {
+            data()
+            sourceSet = sourceSets.main
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            programArguments.addAll('--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath())
+            programArguments.addAll('--existing-mod', 'gtceu')
+        }
+    }
+
+    mods {
+        // define mod <-> source bindings
+        // these are used to tell the game which sources are for which mod
+        // mostly optional in a single mod project
+        // but multi mod projects should define one per mod
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+apply from: "$rootDir/gradle/scripts/spotless.gradle"
+
+dependencies {
+    compileOnly("org.jetbrains:annotations:26.0.1")
+
+    modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
+    modImplementation("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
+    modImplementation("com.tterrag.registrate:Registrate:${registrate_version}")
+    modImplementation("com.typeomega:typeomega-lib:${typeomegalib_version}") { transitive = false }
+    modImplementation("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
+
+    // EN: Optional mod compat bridges (compile-only; runtime guards check ModList.get().isLoaded(...)).
+    // PT: Pontes opcionais de compatibilidade (somente compilação; runtime protegido por ModList.get().isLoaded(...)).
+    // ZH: 可选模组兼容桥接（仅编译期依赖；运行时由 ModList.get().isLoaded(...) 保护）。
+    modCompileOnly("curse.maven:applied-energistics-2-223794:7148487") { transitive = false }
+    modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}:api")
+    modCompileOnly("curse.maven:ftb-library-forge-404465:8226927") { transitive = false }
+    modCompileOnly("curse.maven:ftb-teams-forge-404468:7499810") { transitive = false }
+
+    compileOnly 'org.projectlombok:lombok:1.18.24'
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // EN: LDLib widgets log through slf4j 2 at class init; the compile classpath alone does not carry it.
+    // PT: Os widgets da LDLib usam o slf4j 2 ao carregar a classe; o classpath de compilação sozinho não o traz.
+    // ZH: LDLib 组件在类初始化时通过 slf4j 2 记录日志；仅靠编译类路径不包含它。
+    testRuntimeOnly 'org.slf4j:slf4j-api:2.0.7'
+    annotationProcessor 'org.projectlombok:lombok:1.18.24'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var properties = [
+            "mod_license": mod_license,
+            "mod_id": mod_id,
+            "version": version,
+            "mod_name": mod_name,
+            "mod_url": mod_url,
+            "mod_author": mod_author,
+            "forge_version": forge_version.split("\\.")[0],
+            "minecraft_version": minecraft_version,
+            "gtceu_version": gtceu_version,
+            "typeomegalib_version": typeomegalib_version,
+    ]
+    inputs.properties(properties)
+    filesMatching("META-INF/mods.toml") {
+        expand properties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    finalizedBy 'reobfJar'
+}
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release.set(17)
+}
+
+
+// EN: Local Maven publication so the Type Omega mods can build against an unreleased Omega QA (publishToMavenLocal).
+// PT: Publicação no Maven local para os mods do Type Omega compilarem contra um Omega QA ainda não lançado (publishToMavenLocal).
+// ZH: 发布到本地 Maven，使 Type Omega 各模组可以针对未发布的 Omega QA 进行构建（publishToMavenLocal）。
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifactId = archives_base_name
+            from components.java
+        }
+    }
+}
+
+// Legacy Forge has no unitTest DSL: plain JUnit sees Minecraft through the main compile classpath.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
