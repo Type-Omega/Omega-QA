@@ -40,6 +40,7 @@ public final class OmegaTestReporter implements TestReporter {
     private final TestReportSink sink;
     private final LogTestReporter logDelegate = new LogTestReporter();
     private final List<TestCaseRecord> recordedTests = new ArrayList<>();
+    private final @Nullable GameTestTimings timings;
 
     public OmegaTestReporter(Path junitFile, Path jsonFile, Path summaryFile, boolean allowNoTests,
                              TestReportSink sink) {
@@ -48,10 +49,18 @@ public final class OmegaTestReporter implements TestReporter {
         this.summaryFile = Objects.requireNonNull(summaryFile, "summaryFile");
         this.allowNoTests = allowNoTests;
         this.sink = Objects.requireNonNull(sink, "sink");
+        this.timings = GameTestTimings.createIfConfigured();
     }
 
     public static void installIfConfigured() {
-        if (!OmegaQaProperties.shouldInstallReporter()) return;
+        if (!OmegaQaProperties.shouldInstallReporter()) {
+            GameTestTimings timings = GameTestTimings.createIfConfigured();
+            if (timings != null) {
+                GlobalTestReporter.replaceWith(new TimingsOnlyReporter(timings));
+                OmegaQA.LOGGER.info("Omega-QA timings reporter installed: {}", OmegaQaProperties.timingsFile());
+            }
+            return;
+        }
         OmegaTestReporter reporter = new OmegaTestReporter(
                 OmegaQaProperties.junitFile(),
                 OmegaQaProperties.jsonFile(),
@@ -82,6 +91,7 @@ public final class OmegaTestReporter implements TestReporter {
                     null, null, null, "passed", FailureDiagnostic.TestStatus.PASSED));
         }
         recordCase(record);
+        if (timings != null) timings.record(test, record.status().name());
         OmegaTestSession.forget(test);
     }
 
@@ -99,6 +109,7 @@ public final class OmegaTestReporter implements TestReporter {
             if (session != null) session.runCleanup();
             recordCase(toRecord(test, FailureDiagnostic.TestStatus.SKIPPED, null, null, reason,
                     null, null, null, eventLines));
+            if (timings != null) timings.record(test, FailureDiagnostic.TestStatus.SKIPPED.name());
             OmegaTestSession.forget(test);
             return;
         }
@@ -124,6 +135,7 @@ public final class OmegaTestReporter implements TestReporter {
                     failPos, null, null, message, status));
         }
         recordCase(toRecord(test, status, failTick, invariant, message, failPos, expected, actual, eventLines));
+        if (timings != null) timings.record(test, status.name());
         OmegaTestSession.forget(test);
     }
 
@@ -145,6 +157,41 @@ public final class OmegaTestReporter implements TestReporter {
             OmegaQA.LOGGER.info("Omega-QA wrote reports: {} | {} | {}", junitFile, jsonFile, summaryFile);
         } catch (IOException e) {
             OmegaQA.LOGGER.error("Failed to write Omega-QA reports", e);
+        }
+        if (timings != null) {
+            timings.write();
+        }
+    }
+
+    private static final class TimingsOnlyReporter implements TestReporter {
+
+        private final LogTestReporter logDelegate = new LogTestReporter();
+        private final GameTestTimings timings;
+
+        private TimingsOnlyReporter(GameTestTimings timings) {
+            this.timings = timings;
+        }
+
+        @Override
+        public void onTestSuccess(GameTestInfo test) {
+            logDelegate.onTestSuccess(test);
+            OmegaTestSession session = OmegaTestSession.find(test);
+            String status = (session != null && session.isSkipped()) ? "SKIPPED" : "PASSED";
+            timings.record(test, status);
+        }
+
+        @Override
+        public void onTestFailed(GameTestInfo test) {
+            logDelegate.onTestFailed(test);
+            Throwable error = test.getError();
+            String status = error instanceof OmegaAssumptionException ? "SKIPPED" : classifyError(error).name();
+            timings.record(test, status);
+        }
+
+        @Override
+        public void finish() {
+            logDelegate.finish();
+            timings.write();
         }
     }
 

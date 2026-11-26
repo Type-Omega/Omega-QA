@@ -15,17 +15,22 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.typeomega.qa.OmegaQA;
 import com.typeomega.qa.dsl.OmegaTestHelper;
 import com.typeomega.qa.gt.MachineRig;
 import com.typeomega.qa.log.EventCategory;
 import com.typeomega.qa.perf.PerfBenchRig;
+import com.typeomega.qa.report.GameTestTimings;
 import com.typeomega.qa.spi.DefaultTestReportSink;
 import com.typeomega.qa.spi.OmegaQaBootstrap;
 import com.typeomega.qa.spi.PerfBaselineRecord;
 import com.typeomega.qa.sweeps.LangSweepOptions;
 import com.typeomega.qa.sweeps.OmegaSweeps;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 /**
@@ -112,5 +117,56 @@ public final class OmegaPerfAndReportGameTests {
                 nonVanillaFailures.isEmpty(),
                 "expected >100 GTCEu recipes with 0 GT failures, got " + nonVanillaFailures);
         raw.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "omegaqa_report", timeoutTicks = 40)
+    public static void timingsReportWritesJsonAndSummary(GameTestHelper raw) throws Exception {
+        Path tempDir = Files.createTempDirectory("omegaqa_timings_gametest");
+        Path jsonFile = tempDir.resolve("timings.json");
+        Path txtFile = GameTestTimings.summaryPathFor(jsonFile);
+        try {
+            GameTestTimings timings = new GameTestTimings(jsonFile);
+            timings.record(new GameTestTimings.TimingEntry(
+                    "OmegaPerfAndReportGameTests.timingsReportWritesJsonAndSummary",
+                    "OmegaPerfAndReportGameTests",
+                    "timingsReportWritesJsonAndSummary",
+                    "omegaqa_report",
+                    false,
+                    false,
+                    1L,
+                    5L,
+                    "PASSED"));
+            timings.record(new GameTestTimings.TimingEntry(
+                    "SampleHeavyTests.autoBuild",
+                    "SampleHeavyTests",
+                    "autoBuild",
+                    GameTestTimings.HEAVY_BATCH,
+                    true,
+                    true,
+                    120L,
+                    640L,
+                    "PASSED"));
+            timings.write();
+
+            raw.assertTrue(Files.exists(jsonFile), "timings JSON file must be written");
+            raw.assertTrue(Files.exists(txtFile), "timings text summary must be written");
+
+            JsonObject parsed = JsonParser.parseString(Files.readString(jsonFile)).getAsJsonObject();
+            raw.assertTrue(parsed.get("schemaVersion").getAsInt() == GameTestTimings.SCHEMA_VERSION,
+                    "schemaVersion must be 1");
+            raw.assertTrue(parsed.get("totalTests").getAsInt() == 2, "totalTests must be 2");
+            raw.assertTrue(parsed.get("heavyCount").getAsInt() == 1, "heavyCount must be 1");
+
+            String summary = Files.readString(txtFile);
+            raw.assertTrue(summary.contains("Top 20 Slowest Tests"), "summary must include top 20 section");
+            raw.assertTrue(summary.contains("Total By Class"), "summary must include class totals");
+            raw.assertTrue(summary.contains("Total By Batch"), "summary must include batch totals");
+            raw.assertTrue(summary.contains("SampleHeavyTests.autoBuild"), "summary must list heavy tests");
+            raw.succeed();
+        } finally {
+            Files.deleteIfExists(txtFile);
+            Files.deleteIfExists(jsonFile);
+            Files.deleteIfExists(tempDir);
+        }
     }
 }

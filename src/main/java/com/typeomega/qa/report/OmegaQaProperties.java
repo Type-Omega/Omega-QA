@@ -2,6 +2,8 @@ package com.typeomega.qa.report;
 
 import net.minecraftforge.gametest.ForgeGameTestHooks;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ public final class OmegaQaProperties {
     public static final String PROP_EXPORT_SNAPSHOT = "omegaqa.exportSnapshot";
     public static final String PROP_SNAPSHOT_DIR = "omegaqa.snapshotDir";
     public static final String PROP_TURBO = "omegaqa.turbo";
+    public static final String PROP_TIMINGS = "omegaqa.timings";
 
     private OmegaQaProperties() {}
 
@@ -75,6 +78,12 @@ public final class OmegaQaProperties {
         String explicit = System.getProperty(PROP_SUMMARY_FILE);
         if (explicit != null && !explicit.isBlank()) return resolvePath(explicit);
         return reportDir().resolve("omegaqa-summary.md");
+    }
+
+    public static @Nullable Path timingsFile() {
+        String explicit = System.getProperty(PROP_TIMINGS);
+        if (explicit == null || explicit.isBlank()) return null;
+        return resolvePath(explicit);
     }
 
     public static List<String> testFilters() {
